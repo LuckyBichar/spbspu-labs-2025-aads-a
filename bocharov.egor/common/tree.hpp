@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <functional>
 #include <stdexcept>
+#include <exception>
 #include <utility>
 #include "node.hpp"
 #include "iterator.hpp"
@@ -32,7 +33,7 @@ namespace bocharov
     ~Tree();
 
     Tree< Key, T, Cmp > & operator=(const Tree< Key, T, Cmp > &);
-    Tree< Key, T, Cmp > & operator=(Tree< Key, T, Cmp > &&);
+    Tree< Key, T, Cmp > & operator=(Tree< Key, T, Cmp > &&) noexcept;
 
     std::pair< Iter, bool > insert(const DataPair &);
     template< typename InputIt >
@@ -138,7 +139,15 @@ namespace bocharov
     fakeRoot_->height = -1;
     for (auto it = other.begin(); it != other.end(); it++)
     {
-      insert(*it);
+      try
+      {
+        insert(*it);
+      }
+
+      catch (...)
+      {
+        clear();
+      }
     }
   }
 
@@ -162,7 +171,7 @@ namespace bocharov
   }
 
   template< typename Key, typename T, typename Cmp >
-  Tree< Key, T, Cmp > & Tree< Key, T, Cmp >::operator=(Tree< Key, T, Cmp > && rhs)
+  Tree< Key, T, Cmp > & Tree< Key, T, Cmp >::operator=(Tree< Key, T, Cmp > && rhs) noexcept
   {
     if (this != std::addressof(rhs))
     {
@@ -290,9 +299,8 @@ namespace bocharov
       return emplace(std::forward< Args >(args)...).first;
     }
 
-    Node tempNode(std::forward< Args >(args)...);
+    Node tempNode = new Node(tempNode.data);
     const Key & newKey = tempNode.data.first;
-
     if (hint != cend())
     {
       const Key & hintKey = hint->first;
@@ -301,13 +309,12 @@ namespace bocharov
 
       if (cmp_(hintKey, newKey) && (nextHint == cend() || cmp_(newKey, nextHint->first)))
       {
-        Node * newNode = new Node(std::move(tempNode.data));
         Node * hintNode = hint.getNode();
-        newNode->parent = hintNode;
-        hintNode->right = newNode;
-        balanceUpper(newNode);
+        tempNode->parent = hintNode;
+        hintNode->right = tempNode;
+        balanceUpper(tempNode);
         size_++;
-        return Iter(newNode);
+        return Iter(tempNode);
       }
     }
     return emplace(std::move(tempNode.data)).first;
